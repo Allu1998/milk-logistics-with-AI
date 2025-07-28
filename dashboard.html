@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dairy Logistics Dashboard</title>
+    <style>
+        body { font-family: system-ui, sans-serif; display: flex; justify-content: center; margin-top: 50px; background-color: #f9f9f9; }
+        #container { width: 800px; border: 1px solid #ccc; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); background-color: white; }
+        button, .action-btn { font-size: 14px; padding: 8px 12px; cursor: pointer; border-radius: 5px; border: 1px solid #007bff; background-color: #007bff; color: white; }
+        button:hover, .action-btn:hover { background-color: #0056b3; }
+        .result-section { margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .low-stock, .urgent-service { background-color: #ffdddd; color: #d8000c; font-weight: bold; }
+        #schedule-result p { font-size: 18px; font-weight: bold; color: #0056b3; }
+        form input { padding: 8px; margin-right: 10px; margin-bottom: 10px; }
+        .edit-btn { background-color: #ffc107; border-color: #ffc107; color: black; }
+        .save-btn { background-color: #28a745; border-color: #28a745; }
+    </style>
+</head>
+<body>
+
+    <div id="container">
+        <h2>Dairy Logistics Dashboard</h2>
+        <p>Refresh data or manage milk suppliers below.</p>
+        <button onclick="fetchAllData()">Refresh All Data</button>
+        
+        <div id="maintenance-result" class="result-section"></div>
+        <div id="supplier-management" class="result-section">
+            <h3>Milk Suppliers</h3>
+            <div id="supplier-list"></div>
+            <h4>Add New Supplier</h4>
+            <form id="add-supplier-form">
+                <input type="text" id="supplier-name" placeholder="Supplier Name" required>
+                <input type="text" id="address" placeholder="Address" required>
+                <input type="text" id="submitted-by" placeholder="Your Name" required>
+                <input type="number" id="quantity" placeholder="Quantity (Liters)" required step="any">
+                <input type="number" id="price" placeholder="Price per Liter" required step="any">
+                <button type="submit">Add Supplier</button>
+            </form>
+        </div>
+        <div id="schedule-result" class="result-section"></div>
+        <div id="inventory-result" class="result-section"></div>
+        <div id="forecast-result" class="result-section"></div>
+    </div>
+
+    <script>
+        window.onload = fetchAllData;
+
+        function fetchAllData() {
+            fetchMaintenance();
+            fetchSuppliers();
+            fetchSchedule();
+            fetchInventory();
+            fetchForecast();
+        }
+
+        function fetchMaintenance() {
+            const resultDiv = document.getElementById('maintenance-result');
+            resultDiv.innerHTML = '<h3>Predictive Maintenance</h3><p>Loading...</p>';
+            fetch('http://127.0.0.1:5000/maintenance')
+                .then(response => response.json())
+                .then(data => {
+                    let table = '<table><tr><th>Vehicle ID</th><th>Model</th><th>Mileage</th><th>Age (Yrs)</th><th>Predicted Service In (Days)</th></tr>';
+                    data.forEach(vehicle => {
+                        const alertClass = vehicle.predicted_service_in_days < 30 ? 'class="urgent-service"' : '';
+                        table += `<tr ${alertClass}><td>${vehicle.id}</td><td>${vehicle.model}</td><td>${vehicle.mileage}</td><td>${vehicle.age_years}</td><td>${vehicle.predicted_service_in_days}</td></tr>`;
+                    });
+                    table += '</table>';
+                    resultDiv.innerHTML = '<h3>Predictive Maintenance</h3>' + table;
+                }).catch(error => { resultDiv.innerHTML = `<h3>Predictive Maintenance</h3><p style="color: red;">Failed to fetch maintenance data.</p>`; });
+        }
+
+        function fetchSuppliers() {
+            const resultDiv = document.getElementById('supplier-list');
+            fetch('http://127.0.0.1:5000/suppliers').then(response => response.json()).then(data => {
+                let table = '<table><tr><th>ID</th><th>Supplier</th><th>Address</th><th>Submitted By</th><th>Timestamp</th><th>Qty (L)</th><th>Price/L</th><th>Earnings</th><th>Actions</th></tr>';
+                data.forEach(s => {
+                    table += `<tr data-supplier-id="${s.id}"><td>${s.id}</td><td class="supplier-name">${s.supplier_name}</td><td class="address">${s.address}</td><td>${s.submitted_by}</td><td>${new Date(s.timestamp).toLocaleString()}</td><td class="quantity">${s.quantity_liters}</td><td class="price">${s.price_per_liter.toFixed(2)}</td><td>$${s.earnings.toFixed(2)}</td><td><button class="action-btn edit-btn" onclick="editSupplier(${s.id})">Edit</button></td></tr>`;
+                });
+                table += '</table>';
+                resultDiv.innerHTML = table;
+            }).catch(error => { resultDiv.innerHTML = `<p style="color: red;">Failed to fetch supplier data.</p>`; });
+        }
+
+        function editSupplier(supplierId) {
+            const row = document.querySelector(`tr[data-supplier-id='${supplierId}']`);
+            row.querySelector('.supplier-name').innerHTML = `<input type="text" value="${row.querySelector('.supplier-name').innerText}">`;
+            row.querySelector('.address').innerHTML = `<input type="text" value="${row.querySelector('.address').innerText}">`;
+            row.querySelector('.quantity').innerHTML = `<input type="number" value="${row.querySelector('.quantity').innerText}" step="any">`;
+            row.querySelector('.price').innerHTML = `<input type="number" value="${row.querySelector('.price').innerText}" step="any">`;
+            row.querySelector('td:last-child').innerHTML = `<button class="action-btn save-btn" onclick="saveSupplier(${supplierId})">Save</button>`;
+        }
+
+        function saveSupplier(supplierId) {
+            const row = document.querySelector(`tr[data-supplier-id='${supplierId}']`);
+            const updatedData = {
+                supplier_name: row.querySelector('.supplier-name input').value,
+                address: row.querySelector('.address input').value,
+                quantity_liters: parseFloat(row.querySelector('.quantity input').value),
+                price_per_liter: parseFloat(row.querySelector('.price input').value)
+            };
+            fetch(`http://127.0.0.1:5000/suppliers/${supplierId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updatedData) })
+            .then(response => response.json()).then(data => { console.log(data.message); fetchSuppliers(); });
+        }
+
+        document.getElementById('add-supplier-form').addEventListener('submit', function(event) {
+            event.preventDefault();
+            const supplierData = {
+                supplier_name: document.getElementById('supplier-name').value,
+                address: document.getElementById('address').value,
+                submitted_by: document.getElementById('submitted-by').value,
+                quantity_liters: parseFloat(document.getElementById('quantity').value),
+                price_per_liter: parseFloat(document.getElementById('price').value)
+            };
+            fetch('http://127.0.0.1:5000/suppliers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(supplierData) }).then(response => response.json()).then(data => {
+                console.log(data.message);
+                this.reset();
+                fetchAllData(); // Refresh all data to see inventory update
+            });
+        });
+
+        function fetchSchedule() {
+            const resultDiv = document.getElementById('schedule-result');
+            resultDiv.innerHTML = '<h3>Scheduling Recommendation</h3><p>Loading...</p>';
+            fetch('http://127.0.0.1:5000/schedule').then(response => response.json()).then(data => {
+                resultDiv.innerHTML = `<h3>Scheduling Recommendation</h3><p>${data.recommendation}</p>`;
+            }).catch(error => { resultDiv.innerHTML = `<h3>Scheduling Recommendation</h3><p style="color: red;">Failed to fetch schedule.</p>`; });
+        }
+
+        function fetchInventory() {
+            const resultDiv = document.getElementById('inventory-result');
+            resultDiv.innerHTML = '<h3>Inventory Status</h3><p>Loading...</p>';
+            fetch('http://127.0.0.1:5000/inventory').then(response => response.json()).then(data => {
+                let table = '<table><tr><th>Product</th><th>Current Stock</th><th>Safety Stock</th></tr>';
+                for (const [id, item] of Object.entries(data)) {
+                    const alertClass = item.current_stock < item.safety_stock ? 'class="low-stock"' : '';
+                    table += `<tr ${alertClass}><td>${item.name}</td><td>${item.current_stock}</td><td>${item.safety_stock}</td></tr>`;
+                }
+                table += '</table>';
+                resultDiv.innerHTML = '<h3>Inventory Status</h3>' + table;
+            }).catch(error => { resultDiv.innerHTML = `<p style="color: red;">Failed to fetch inventory.</p>`; });
+        }
+
+        function fetchForecast() {
+            const resultDiv = document.getElementById('forecast-result');
+            resultDiv.innerHTML = '<h3>Demand Forecast (Next 7 Days)</h3><p>Loading...</p>';
+            fetch('http://127.0.0.1:5000/forecast').then(response => response.json()).then(data => {
+                let table = '<table><tr><th>Date</th><th>Predicted Quantity</th></tr>';
+                for (const [date, quantity] of Object.entries(data)) {
+                    table += `<tr><td>${date}</td><td>${Math.round(quantity)}</td></tr>`;
+                }
+                table += '</table>';
+                resultDiv.innerHTML = '<h3>Demand Forecast (Next 7 Days)</h3>' + table;
+            }).catch(error => { resultDiv.innerHTML = `<p style="color: red;">Failed to fetch forecast.</p>`; });
+        }
+    </script>
+</body>
+</html>
