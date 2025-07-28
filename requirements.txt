@@ -1,5 +1,10 @@
+
 Flask
 pandas
 statsmodels
 Flask-Cors
 gunicorn
+scikit-learn
+numpy
+openpyxl
+Faker
